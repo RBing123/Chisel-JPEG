@@ -494,3 +494,126 @@ class HuffmanAcEncoder extends Module {
     }
   }
 }
+
+class HuffmanDcDecoder extends Module{
+  val io = IO(new Bundle {
+    val in = new Bundle {
+      val bits = Input(UInt(16.W))      // 輸入的編碼位元
+      val length = Input(UInt(8.W))     // 編碼長度
+      val isLuminance = Input(Bool())   // 是否為亮度資料
+    }
+    val out = new Bundle {
+      val value = Output(SInt(12.W))     // 解碼後的 DC 值
+    }
+  })
+  val luminanceDcTable = VecInit(Seq(
+    "b00".U(16.W),         // 0: 00
+    "b010".U(16.W),        // 1: 010
+    "b011".U(16.W),        // 2: 011
+    "b100".U(16.W),        // 3: 100
+    "b101".U(16.W),        // 4: 101
+    "b110".U(16.W),        // 5: 110
+    "b1110".U(16.W),       // 6: 1110
+    "b11110".U(16.W),      // 7: 11110
+    "b111110".U(16.W),     // 8: 111110
+    "b1111110".U(16.W),    // 9: 1111110
+    "b11111110".U(16.W),   // 10: 11111110
+    "b111111110".U(16.W)   // 11: 111111110
+  ))
+
+  // DC 色度的 Huffman 表
+  val chrominanceDcTable = VecInit(Seq(
+    "b00".U(16.W),         // 0: 00
+    "b01".U(16.W),         // 1: 01
+    "b10".U(16.W),         // 2: 10
+    "b110".U(16.W),        // 3: 110
+    "b1110".U(16.W),       // 4: 1110
+    "b11110".U(16.W),      // 5: 11110
+    "b111110".U(16.W),     // 6: 111110
+    "b1111110".U(16.W),    // 7: 1111110
+    "b11111110".U(16.W),   // 8: 11111110
+    "b111111110".U(16.W),  // 9: 111111110
+    "b1111111110".U(16.W), // 10: 1111111110
+    "b11111111110".U(16.W) // 11: 11111111110
+  ))
+  val selectedTable = Mux(io.in.isLuminance, luminanceDcTable, chrominanceDcTable)
+
+  // 找出 category (size)
+  val category = Wire(UInt(4.W))
+  category := 0.U
+  for (i <- 0 until 12) {
+    when(io.in.bits === selectedTable(i)) {
+      category := i.U
+    }
+  }
+
+  // 解碼真實值
+  // 根據 category 從 amplitude 中讀取正確的位數
+  val amplitude = Wire(SInt(12.W))
+  when(category === 0.U) {
+    amplitude := 0.S
+  }.otherwise {
+    // 從輸入位元中取出額外的位元表示實際值
+    val mask = (1.U << category) - 1.U
+    val absValue = io.in.bits & mask
+    // 如果最高位是 1，則是正數；否則是負數
+    when(io.in.bits(category.asUInt - 1.U)) {
+      amplitude := absValue.asSInt
+    }.otherwise {
+      amplitude := ((-absValue).asSInt - 1.S)
+    }
+  }
+
+  io.out.value := amplitude
+}
+
+class HuffmanAcDecoder extends Module{
+  val io = IO(new Bundle {
+    val in = new Bundle {
+      val bits = Input(UInt(16.W))      // 輸入的編碼位元
+      val length = Input(UInt(8.W))     // 編碼長度
+      val isLuminance = Input(Bool())   // 是否為亮度資料
+    }
+    val out = new Bundle {
+      val run = Output(UInt(4.W))        // 解碼後的 run 值
+      val size = Output(UInt(4.W))       // 解碼後的 size 值
+      val amplitude = Output(SInt(12.W))  // 解碼後的幅值
+    }
+  })
+
+  // 選擇使用哪個表格（從 object 中獲取）
+  val luminanceTable = luminanceAcTable()
+  val chrominanceTable = chrominanceAcTable()
+  val selectedTable = Mux(io.in.isLuminance, luminanceTable, chrominanceTable)
+
+  // 找到匹配的表項
+  val matchEntry = Wire(new HuffmanEntry)
+  matchEntry := selectedTable(0) // 默認值
+  
+  for (i <- 0 until selectedTable.length) {
+    when(io.in.bits === selectedTable(i).code && 
+         io.in.length === selectedTable(i).length) {
+      matchEntry := selectedTable(i)
+    }
+  }
+
+  // 從 runSize 中提取 run 和 size
+  io.out.run := matchEntry.runSize(7, 4)  // 高4位是 run
+  io.out.size := matchEntry.runSize(3, 0)  // 低4位是 size
+
+  // 解碼振幅值
+  val size = io.out.size
+  when(size === 0.U) {
+    io.out.amplitude := 0.S
+  }.otherwise {
+    // 從輸入位元中取出額外的位元表示實際值
+    val mask = (1.U << size) - 1.U
+    val absValue = io.in.bits & mask
+    // 如果最高位是 1，則是正數；否則是負數
+    when(io.in.bits(size.asUInt - 1.U)) {
+      io.out.amplitude := absValue.asSInt
+    }.otherwise {
+      io.out.amplitude := ((-absValue).asSInt - 1.S)
+    }
+  }
+}
