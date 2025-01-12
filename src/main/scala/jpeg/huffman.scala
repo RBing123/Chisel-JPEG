@@ -104,27 +104,15 @@ class HuffmanDcEncoder extends Module {
   io.out.valid := io.in.valid
 }
 
-class HuffmanAcEncoder extends Module {
-  val io = IO(new Bundle {
-    val run = Input(UInt(4.W))        // AC Run 值
-    val size = Input(UInt(4.W))       // AC Size 值
-    val amplitude = Input(SInt(12.W)) // 幅值
-    val isLuminance = Input(Bool())   // 是否為 Luminance
-    val out = Output(new Bundle {
-      val bits = UInt(128.W) // 最終編碼位元流
-      val length = UInt(8.W) // 編碼總長度
-    })
-  })
-
-  // 定義 AC 表結構
-  class ACEntry extends Bundle {
-    val runSize = UInt(8.W)   // Run/Size 鍵
-    val code = UInt(16.W)     // Huffman 編碼
-    val length = UInt(4.W)    // Huffman 編碼長度
+class HuffmanEntry extends Bundle {
+    val runSize = UInt(8.W)
+    val code = UInt(16.W)
+    val length = UInt(5.W)
   }
-
-  // Luminance AC 表
-  val luminanceAcTable = VecInit(Seq(
+object luminanceAcTable {
+  def apply():Vec[HuffmanEntry] = {
+    VecInit(Seq(
+    (0x00.U, "b1010".U, 4.U),           // 0/0
     (0x01.U, "b00".U, 2.U),           // 0/1
     (0x02.U, "b01".U, 2.U),           // 0/2
     (0x03.U, "b100".U, 3.U),           // 0/3
@@ -275,28 +263,30 @@ class HuffmanAcEncoder extends Module {
     (0xE8.U, "b1111111111110010".U, 16.U),           // 0/8
     (0xE9.U, "b1111111111110011".U, 16.U),           // 0/9
     (0xEA.U, "b1111111111110100".U, 16.U),           // 0/10
-    (0xE1.U, "b1111111111110101".U, 16.U),           // 0/1
-    (0xE2.U, "b1111111111110110".U, 16.U),           // 0/2
-    (0xE3.U, "b1111111111110111".U, 16.U),           // 0/3
-    (0xE4.U, "b1111111111111000".U, 16.U),           // 0/4
-    (0xE5.U, "b1111111111111001".U, 16.U),           // 0/5
-    (0xE6.U, "b1111111111111010".U, 16.U),           // 0/6
-    (0xE7.U, "b1111111111111011".U, 16.U),           // 0/7
-    (0xE8.U, "b1111111111111100".U, 16.U),           // 0/8
-    (0xE9.U, "b1111111111111101".U, 16.U),           // 0/9
-    (0xEA.U, "b1111111111111110".U, 16.U),           // 0/10
+    (0xF1.U, "b1111111111110101".U, 16.U),           // 0/1
+    (0xF2.U, "b1111111111110110".U, 16.U),           // 0/2
+    (0xF3.U, "b1111111111110111".U, 16.U),           // 0/3
+    (0xF4.U, "b1111111111111000".U, 16.U),           // 0/4
+    (0xF5.U, "b1111111111111001".U, 16.U),           // 0/5
+    (0xF6.U, "b1111111111111010".U, 16.U),           // 0/6
+    (0xF7.U, "b1111111111111011".U, 16.U),           // 0/7
+    (0xF8.U, "b1111111111111100".U, 16.U),           // 0/8
+    (0xF9.U, "b1111111111111101".U, 16.U),           // 0/9
+    (0xFA.U, "b1111111111111110".U, 16.U),           // 0/10
     
     (0xF0.U, "b11111111001".U, 11.U)  // ZRL (15/0)
   ).map { case (runSize, code, length) =>
-    val entry = Wire(new ACEntry)
-    entry.runSize := runSize
-    entry.code := code
-    entry.length := length
-    entry
-  })
-
-  // Chrominance AC 表
-  val chrominanceAcTable = VecInit(Seq(
+      val entry = Wire(new HuffmanEntry)
+      entry.runSize := runSize
+      entry.code := code
+      entry.length := length
+      entry
+    })
+  }
+}
+object chrominanceAcTable {
+  def apply(): Vec[HuffmanEntry] = {
+    VecInit(Seq(
     (0x00.U, "b00".U, 2.U),           // EOB
     (0x01.U, "b01".U, 2.U),           // 0/1
     (0x02.U, "b100".U, 3.U),           // 0/2
@@ -461,37 +451,46 @@ class HuffmanAcEncoder extends Module {
     
     (0xF0.U, "b1111111010".U, 10.U)   // ZRL (15/0)
   ).map { case (runSize, code, length) =>
-    val entry = Wire(new ACEntry)
-    entry.runSize := runSize
-    entry.code := code
-    entry.length := length
-    entry
+      val entry = Wire(new HuffmanEntry)
+      entry.runSize := runSize
+      entry.code := code
+      entry.length := length
+      entry
+    })
+  }
+}
+class HuffmanAcEncoder extends Module {
+  val io = IO(new Bundle {
+    val run = Input(UInt(4.W))        // AC Run 值
+    val size = Input(UInt(4.W))       // AC Size 值
+    val amplitude = Input(SInt(12.W)) // 幅值
+    val isLuminance = Input(Bool())   // 是否為 Luminance
+    val out = Output(new Bundle {
+      val bits = UInt(16.W) // 最終編碼位元流
+      val length = UInt(8.W) // 編碼總長度
+    })
   })
-
-  // 選擇表
-  val acTable = Mux(io.isLuminance, luminanceAcTable, chrominanceAcTable)
-
-  // 初始化輸出
+  
+  val runSize = Cat(io.run, io.size)
+  // val luminanceTable = VecInit(luminanceAcTable)
+  // val chrominanceTable = VecInit(chrominanceAcTable)
   io.out.bits := 0.U
   io.out.length := 0.U
-
-  // 查找匹配的 Huffman 編碼
-  val inputKey = Cat(io.run, io.size) // 將 Run 和 Size 組合成鍵
-  val matchedCode = Wire(UInt(16.W))
-  val matchedLength = Wire(UInt(4.W))
-  matchedCode := 0.U
-  matchedLength := 0.U
-
-  // 遍歷表並匹配
-  for (entry <- acTable) {
-    when(entry.runSize === inputKey) {
-      matchedCode := entry.code
-      matchedLength := entry.length
+  when(io.isLuminance) {
+    // 使用亮度表格
+    for (entry <- luminanceAcTable()) {
+      when(entry.runSize === runSize) {
+        io.out.bits := entry.code
+        io.out.length := entry.length
+      }
+    }
+  }.otherwise {
+    // 使用色度表格
+    for (entry <- chrominanceAcTable()) {
+      when(entry.runSize === runSize) {
+        io.out.bits := entry.code
+        io.out.length := entry.length
+      }
     }
   }
-
-  // 處理幅值 (Amplitude)
-  val amplitudeBits = io.amplitude.asUInt(io.size) // 根據 Size 取幅值補碼
-  io.out.bits := Cat(matchedCode, amplitudeBits)
-  io.out.length := matchedLength + io.size
 }
