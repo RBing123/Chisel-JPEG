@@ -112,22 +112,6 @@ class JPEGEncodeChiselTest extends AnyFlatSpec with ChiselScalatestTester {
                 }
                 println("Passed Zigzag")
 
-                // Testing Encode
-                // val expectedDcDiff = expectedZigzag(0) - previousDcValue
-                // dut.io.huffmanEncodedDC.bits.expect( /* 預期的 DC Huffman 位元數據 */ )
-                // dut.io.huffmanEncodedDC.length.expect( /* 預期的 DC 編碼長度 */ )
-                // previousDcValue = expectedZigzag(0)
-                // println("Passed DC Huffman Encoding")
-
-                // // RLE 和 AC Huffman 編碼
-                // val expectedRLE = jpegEncoder.RLE(expectedZigzag.tail)
-                // for (i <- 0 until expectedRLE.length by 2) {
-                //     val run = expectedRLE(i)
-                //     val value = expectedRLE(i + 1)
-                //     dut.io.huffmanEncodedAC.bits.expect( /* 預期的 AC Huffman 位元數據 */ )
-                //     dut.io.huffmanEncodedAC.length.expect( /* 預期的 AC 編碼長度 */ )
-                // }
-                // println("Passed AC Huffman Encoding")
             }
         }
     }
