@@ -243,6 +243,16 @@ Node* buildHuffmanTree(RLEPair* data, int size) {
         }
     }
     
+    // Calculate the usage rate
+    int used_symbols = 0;
+    for (int i = 0; i < unique_count; i++) {
+        if (freq[i] > 0) {  // Only count symbols with non-zero frequency
+            used_symbols++;
+        }
+    }
+    float usage_rate = (float)used_symbols / unique_count * 100.0;
+    printf("Huffman Table Usage Rate (Build Tree): %.2f%%\n", usage_rate);
+    
     // Create a min heap
     MinHeap* minHeap = createMinHeap(unique_count);
     
@@ -313,17 +323,16 @@ void writeCompressedData(const char* output_file, RLEPair* data, int data_size,
 
     fprintf(writer->output_file, "%d\n", code_count);
     
-    // Write to coding table
+    // Write the coding table
     for (int i = 0; i < code_count; i++) {
         fprintf(writer->output_file, "%d %d %s\n", 
                 codes[i].pair.run_length, 
                 codes[i].pair.value, 
                 codes[i].code);
     }
-    
     fprintf(writer->output_file, "---\n");
 
-    // Build binary.txt
+    // Binary representation file
     char binary_file[256];
     sprintf(binary_file, "%s.binary.txt", output_file);
     FILE* binary_out = fopen(binary_file, "w");
@@ -337,7 +346,25 @@ void writeCompressedData(const char* output_file, RLEPair* data, int data_size,
     }
     fprintf(binary_out, "---\n");
 
-    // Compressed
+    // Calculate Huffman Table Usage Rate
+    int used_symbols = 0;
+    for (int i = 0; i < code_count; i++) {
+        int found = 0;
+        for (int j = 0; j < data_size; j++) {
+            if (codes[i].pair.run_length == data[j].run_length && 
+                codes[i].pair.value == data[j].value) {
+                found = 1;
+                break;
+            }
+        }
+        if (found) {
+            used_symbols++;
+        }
+    }
+    float usage_rate = (float)used_symbols / code_count * 100.0;
+    printf("Huffman Table Usage Rate (Write Data): %.2f%%\n", usage_rate);
+
+    // Write the compressed data
     for (int i = 0; i < data_size; i++) {
         const char* code = findCode(codes, code_count, data[i]);
         if (code) {
@@ -347,12 +374,9 @@ void writeCompressedData(const char* output_file, RLEPair* data, int data_size,
         }
     }
     
-    if (writer->bits_count > 0) {
-        writer->buffer <<= (BITS_PER_BYTE - writer->bits_count);
-        fwrite(&writer->buffer, 1, 1, writer->output_file);
-        writer->all_bytes[writer->byte_count++] = writer->buffer;
-    }
+    flushBitWriter(writer);
 
+    // Write binary representation
     for (int i = 0; i < writer->byte_count; i++) {
         for (int j = 7; j >= 0; j--) {
             fprintf(binary_out, "%d", (writer->all_bytes[i] >> j) & 1);
@@ -362,9 +386,6 @@ void writeCompressedData(const char* output_file, RLEPair* data, int data_size,
     fprintf(binary_out, "\n");
 
     fclose(binary_out);
-    fclose(writer->output_file);
-    free(writer->all_bytes);
-    free(writer);
 }
 
 // Function to decompress data
