@@ -21,54 +21,15 @@ class JPEGEncodeChiselTest extends AnyFlatSpec with ChiselScalatestTester {
         * @param data Input pixel data
         * @param encoded Expected encoded output
         */
-    // def readbmp(filepath: String): Seq[Seq[Int]]={
-    //     val img = ImageIO.read(new File(filepath))
-    //     if (img == null) {
-    //         throw new RuntimeException(s"Failed to read image: $filepath")
-    //     }
-    //     val width = img.getWidth
-    //     val height = img.getHeight
-    //     require(width % 8 == 0 && height % 8 == 0, 
-    //             s"Image dimensions must be multiples of 8. Current size: ${width}x${height}")
-    //     val data = for (y <- 0 until height) yield {
-    //         for (x <- 0 until width) yield {
-    //             val pixel = img.getRGB(x, y)
-    //             val red = (pixel >> 16) & 0xff
-    //             val green = (pixel >> 8) & 0xff
-    //             val blue = pixel & 0xff
-                
-    //             (red * 0.299 + green * 0.587 + blue * 0.114).toInt
-    //         }
-    //     }
-    //     data.toSeq
-    // }
-    // def splitInto8x8Blocks(data: Seq[Seq[Int]]): Seq[Seq[Seq[Int]]] = {
-    //     val height = data.length
-    //     val width = data.head.length
-        
-    //     val blocks = for {
-    //         y <- 0 until height by 8
-    //         x <- 0 until width by 8
-    //     } yield {
-    //         for (i <- 0 until 8) yield {
-    //             for (j <- 0 until 8) yield {
-    //                 data(y + i)(x + j)
-    //             }
-    //         }
-    //     }
-    //     blocks.map(_.toSeq).toSeq
-    // }
     def readDataFromFile(fileName: String): Seq[Seq[Int]] = {
         val lines = Source.fromFile(fileName).getLines().toSeq
         require(lines.size == 64, s"File $fileName must contain 64 lines")
         val data = lines.map(_.toInt)
         data.grouped(8).toSeq
     }
-    def doJPEGEncodeChiselTest(dataYFile: String, dataCbFile: String, dataCrFile: String, p: JPEGParams): Unit = {
+    def doJPEGEncodeChiselTest(dataYFile: String, p: JPEGParams): Unit = {
         val dataY = readDataFromFile(dataYFile)
-        val dataCb = readDataFromFile(dataCbFile)
-        val dataCr = readDataFromFile(dataCrFile)
-        dataY.foreach(row => println(row.mkString(", ")))
+        // dataY.foreach(row => println(row.mkString(", ")))
         test(new JPEGEncodeChisel(p)).withAnnotations(Seq(WriteVcdAnnotation)) { dut =>
             dut.clock.setTimeout(0)
             val outputDir = "hw_output"
@@ -78,24 +39,30 @@ class JPEGEncodeChiselTest extends AnyFlatSpec with ChiselScalatestTester {
             dut.io.in.valid.poke(true.B)
             for (i <- 0 until 8; j <- 0 until 8) {
                 dut.io.in.bits.yComponent(i)(j).poke(dataY(i)(j).S)
-                dut.io.in.bits.cbComponent(i)(j).poke(dataCb(i)(j).S)
-                dut.io.in.bits.crComponent(i)(j).poke(dataCr(i)(j).S)
             }
-            dut.clock.step(10)
-            println("Y Component DCT Output:")
-            for (i <- 0 until 8; j <- 0 until 8) {
-                println(s"Y($i, $j): ${dut.io.quantOutY(i)(j).peek().litValue}")
+            dut.clock.step(200)
+            // println("Y Component DCT Output:")
+            // for (i <- 0 until 8; j <- 0 until 8) {
+            //     println(s"Y($i, $j): ${dut.io.dctOutY(i)(j).peek().litValue}")
+            // }
+            println("\n=== Quantization Output ===")
+            for (i <- 0 until p.numRows) {
+                for (j <- 0 until p.numCols) {
+                    val quantValue = dut.io.quantOutY(i)(j).peek().litValue
+                    print(f"$quantValue%5d ")
+                }
+                println()
             }
-
-            // println("Cb Component DCT Output:")
-            // for (i <- 0 until 8; j <- 0 until 8) {
-            //     println(s"Cb($i, $j): ${dut.io.dctOutCb(i)(j).peek().litValue}")
-            // }
-
-            // println("Cr Component DCT Output:")
-            // for (i <- 0 until 8; j <- 0 until 8) {
-            //     println(s"Cr($i, $j): ${dut.io.dctOutCr(i)(j).peek().litValue}")
-            // }
+            println("\n=== Zigzag Output ===")
+            for (i <- 0 until p.totalElements) {
+                val zigzagValue = dut.io.zigzagOutY(i).peek().litValue
+                println(s"Index $i: $zigzagValue")
+            }
+            println("\n=== RLE Encoding Output ===")
+            for (i <- 0 until p.maxOutRLE) {
+                val runLength = dut.io.encodedRLEY(i).peek().litValue
+                println(s"Index $i: $runLength")
+            }
 //             // Testing DCT
 //             val jpegEncoder = new jpegEncode(false, List.empty, 0)
 //             val expectedDCT = jpegEncoder.DCT(data)
@@ -212,23 +179,23 @@ class JPEGEncodeChiselTest extends AnyFlatSpec with ChiselScalatestTester {
     }
     behavior of "Top-level JPEG Encode Chisel"
 
-    it should "Encodes using RLE - IN1 - QT1" in {
+    it should "Encodes Y" in {
         val p = JPEGParams(8, 8, 1, true) // 使用 RLE
         val yDataFile = "hw_output/y.txt"
-        val cbDataFile = "hw_output/cb_block_0.txt"
-        val crDataFile = "hw_output/cr_block_0.txt"
         
-        doJPEGEncodeChiselTest(yDataFile, cbDataFile, crDataFile, p)
+        doJPEGEncodeChiselTest(yDataFile, p)
     }
-
-    // it should "Encodes using Delta Encoding - IN1 - QT1" in {
-    //     val p = JPEGParams(8, 8, 1, false) // 使用 Delta Encoding
-    //     val yDataFile = "hw_output/y_block_0.txt"
-    //     val cbDataFile = "hw_output/cb_block_0.txt"
-    //     val crDataFile = "hw_output/cr_block_0.txt"
-
-    //     doJPEGEncodeChiselTest(yDataFile, cbDataFile, crDataFile, p)
-    // }
+    it should "Encodes Cb" in {
+        val p = JPEGParams(8, 8, 1, true) // 使用 RLE
+        val yDataFile = "hw_output/cb_block_0.txt"
+        
+        doJPEGEncodeChiselTest(yDataFile, p)
+    }
+    it should "Encodes Cr" in {
+        val p = JPEGParams(8, 8, 1, true)
+        val yDataFile = "hw_output/cr_block_0.txt"
+        doJPEGEncodeChiselTest(yDataFile, p)
+    }
     
     // behavior of "Top-level JPEG Encode Chisel"
     // it should "Encodes using RLE - IN1 - QT1" in {

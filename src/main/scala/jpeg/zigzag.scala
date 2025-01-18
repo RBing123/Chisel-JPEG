@@ -76,16 +76,19 @@ class ZigZagChisel(p: JPEGParams) extends Module {
                 stateReg := ZigZagState.processing
                 inMatrix := io.in.bits.matrixIn
                 validOut := false.B
+                count := 0.U    // 重置計數器
+                row := 0.U      // 重置位置
+                col := 0.U
+                isUp := true.B
             }
         } 
         
         is(ZigZagState.processing) {
-            count := count + 1.U
-            
-            // Conditions increment row/col according to ZigZag pattern
             when(count < p.totalElements.U) {
-                // For 8x8 to 1D array input is assigned to output array
+                
                 outReg(count) := inMatrix(row)(col)
+                
+                // zigzag 遍歷邏輯
                 when(isUp) {
                     when(col === 7.U) {
                         row := row + 1.U
@@ -109,13 +112,13 @@ class ZigZagChisel(p: JPEGParams) extends Module {
                         col := col - 1.U
                     }
                 }
-            } 
-            
-            // When parsing complete return to idle
-            when (count === (p.totalElements.U - 1.U)) {
-                stateReg := ZigZagState.idle
-                count := 0.U
-                validOut := true.B
+                stateReg := ZigZagState.processing
+                
+                count := count + 1.U
+                when(count === (p.totalElements.U - 1.U)) {
+                    validOut := true.B
+                    stateReg := ZigZagState.idle
+                }
             }
         }
     }
