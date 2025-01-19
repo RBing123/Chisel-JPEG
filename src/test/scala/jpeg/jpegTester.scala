@@ -53,17 +53,18 @@ class JPEGEncodeChiselTest extends AnyFlatSpec with ChiselScalatestTester {
                 }
                 println()
             }
-            println("\n=== Zigzag Output ===")
+            // println("\n=== Zigzag Output ===")
             // for (i <- 0 until p.totalElements) {
             //     val zigzagValue = dut.io.zigzagOutY(i).peek().litValue
             //     println(s"Index $i: $zigzagValue")
             // }
-            println("\n=== RLE Encoding Output ===")
+            // println("\n=== RLE Encoding Output ===")
             // for (i <- 0 until p.maxOutRLE) {
             //     val runLength = dut.io.encodedRLEY(i).peek().litValue
             //     println(s"Index $i: $runLength")
             // }
-            println("\n=== RLE Encoding Output ===")
+            // println("\n=== RLE Encoding Output ===")
+            
             val componentDir = s"${outputDir}/RLE"
             new File(componentDir).mkdirs()
             val componentType = dataYFile match {
@@ -105,6 +106,41 @@ class JPEGEncodeChiselTest extends AnyFlatSpec with ChiselScalatestTester {
             } finally {
                 deltaWriter.close()
             }
+            // Write DCT output
+        val dctOutputFile = s"${outputDir}/chisel_dct_${componentType}.txt"
+        val dctWriter = new java.io.FileWriter(dctOutputFile)
+        try {
+            for (i <- 0 until 8; j <- 0 until 8) {
+                val dctValue = dut.io.dctOutY(i)(j).peek().litValue
+                dctWriter.write(s"$dctValue\n")
+            }
+        } finally {
+            dctWriter.close()
+        }
+
+        // Write Quantization output
+        val quantOutputFile = s"${outputDir}/chisel_quant_${componentType}.txt"
+        val quantWriter = new java.io.FileWriter(quantOutputFile)
+        try {
+            for (i <- 0 until p.numRows; j <- 0 until p.numCols) {
+                val quantValue = dut.io.quantOutY(i)(j).peek().litValue
+                quantWriter.write(s"$quantValue\n")
+            }
+        } finally {
+            quantWriter.close()
+        }
+
+        // Write Zigzag output
+        val zigzagOutputFile = s"${outputDir}/chisel_zigzag_${componentType}.txt"
+        val zigzagWriter = new java.io.FileWriter(zigzagOutputFile)
+        try {
+            for (i <- 0 until p.totalElements) {
+                val zigzagValue = dut.io.zigzagOutY(i).peek().litValue
+                zigzagWriter.write(s"$zigzagValue\n")
+            }
+        } finally {
+            zigzagWriter.close()
+        }
 //             // Testing DCT
 //             val jpegEncoder = new jpegEncode(false, List.empty, 0)
 //             val expectedDCT = jpegEncoder.DCT(data)
