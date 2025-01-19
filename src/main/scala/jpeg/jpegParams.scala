@@ -3,6 +3,8 @@ package jpeg
 import chisel3._
 import chisel3.internal.firrtl.Width
 import chisel3.util._
+import javax.imageio.ImageIO
+import java.io.File
 
 /**
   * JPEG Parameters for Chisel Modules
@@ -50,7 +52,7 @@ object QuantizationTables {
                   Seq(18, 22, 37, 56, 68, 109, 103, 77),
                   Seq(24, 35, 55, 64, 81, 104, 113, 92),
                   Seq(49, 64, 78, 87, 103, 121, 120, 101),
-                  Seq(72, 992, 95, 98, 112, 100, 103, 99))
+                  Seq(72, 99, 95, 98, 112, 100, 103, 99))
 
     val qt2 = Seq(Seq(17, 18, 24, 47, 99, 99, 99, 99),
                   Seq(18, 21, 26, 66, 99, 99, 99, 99),
