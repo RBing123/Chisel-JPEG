@@ -3,7 +3,8 @@ package jpeg
 import chisel3._
 import chisel3.internal.firrtl.Width
 import chisel3.util._
-
+import chisel3.stage.{ChiselStage, ChiselGeneratorAnnotation}
+import firrtl.options.TargetDirAnnotation 
 /**
   * Performs JPEG Compression
   *
@@ -211,4 +212,9 @@ class JPEGEncodeChisel(p: JPEGParams) extends Module {
     //     }
     // }
 
+}
+
+object GenerateVerilog extends App {
+    (new ChiselStage).emitVerilog(new JPEGEncodeChisel(JPEGParams(8, 8, 1, true)),
+        Array("--target-dir", "verilog_output"))
 }
