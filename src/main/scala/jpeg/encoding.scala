@@ -155,6 +155,8 @@ class DeltaChiselEncode(p: JPEGParams) extends Module{
     // Initialize output register
     val outValid = RegInit(false.B)
     val outputReg = RegInit(VecInit(Seq.fill(p.totalElements)(0.S(p.w8)))) 
+    // Initialize the previous top left element
+    val prevTopLeft = RegInit(0.S(p.w8))
 
     // assign outputs
     io.state := stateReg
@@ -172,17 +174,31 @@ class DeltaChiselEncode(p: JPEGParams) extends Module{
         }
 
         is(EncodingState.encode){
-            outputReg(0) := dataReg(0)
-            when (dataIndex < p.totalElements.U) {
-                // calcuates the difference and assigns to output
+            // outputReg(0) := dataReg(0)
+            when(dataIndex === 1.U) {
+                val topLeftDiff = dataReg(0) - prevTopLeft // Current block's top-left - Previous block's top-left
+                outputReg(0) := topLeftDiff
+                prevTopLeft := dataReg(0) // Update the previous top-left value
+            }
+            when(dataIndex > 0.U && dataIndex < p.totalElements.U) {
                 val diff = dataReg(dataIndex) - dataReg(dataIndex - 1.U)
                 outputReg(dataIndex) := diff
                 dataIndex := dataIndex + 1.U
             }
-            .otherwise{
+            .otherwise {
                 outValid := true.B
                 stateReg := EncodingState.idle
             }
+            // when (dataIndex < p.totalElements.U) {
+            //     // calcuates the difference and assigns to output
+            //     val diff = dataReg(dataIndex) - dataReg(dataIndex - 1.U)
+            //     outputReg(dataIndex) := diff
+            //     dataIndex := dataIndex + 1.U
+            // }
+            // .otherwise{
+            //     outValid := true.B
+            //     stateReg := EncodingState.idle
+            // }
         }
     }
 
