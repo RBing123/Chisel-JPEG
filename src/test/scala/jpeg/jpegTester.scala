@@ -54,14 +54,56 @@ class JPEGEncodeChiselTest extends AnyFlatSpec with ChiselScalatestTester {
                 println()
             }
             println("\n=== Zigzag Output ===")
-            for (i <- 0 until p.totalElements) {
-                val zigzagValue = dut.io.zigzagOutY(i).peek().litValue
-                println(s"Index $i: $zigzagValue")
-            }
+            // for (i <- 0 until p.totalElements) {
+            //     val zigzagValue = dut.io.zigzagOutY(i).peek().litValue
+            //     println(s"Index $i: $zigzagValue")
+            // }
             println("\n=== RLE Encoding Output ===")
-            for (i <- 0 until p.maxOutRLE) {
-                val runLength = dut.io.encodedRLEY(i).peek().litValue
-                println(s"Index $i: $runLength")
+            // for (i <- 0 until p.maxOutRLE) {
+            //     val runLength = dut.io.encodedRLEY(i).peek().litValue
+            //     println(s"Index $i: $runLength")
+            // }
+            println("\n=== RLE Encoding Output ===")
+            val componentDir = s"${outputDir}/RLE"
+            new File(componentDir).mkdirs()
+            val componentType = dataYFile match {
+                case s if s.contains("y_block") => "Y"
+                case s if s.contains("cb_block") => "Cb"
+                case s if s.contains("cr_block") => "Cr"
+            }
+            val blockNum = dataYFile.split("_block_")(1).split("\\.")(0)
+            val rleOutputFile = s"${componentDir}/${componentType}_block_${blockNum}_rle.txt"
+            val writer = new java.io.FileWriter(rleOutputFile)
+            try {
+                var i = 0
+                while (i < p.maxOutRLE - 1) {
+                    val runLength = dut.io.encodedRLEY(i).peek().litValue
+                    val rleValue = dut.io.encodedRLEY(i+1).peek().litValue
+                    
+                    if (i == 0 || runLength != 0 || rleValue != 0) {
+                        writer.write(f"$runLength $rleValue\n")
+                    }
+                    i += 2
+                }
+                println(s"RLE Encoding output written to: $rleOutputFile")
+            } finally {
+                writer.close()
+            }
+            println("\n=== Delta Encoding Output ===")
+            // for (i <- 0 until p.totalElements) {
+            //     val deltaValue = dut.io.encodedDeltaY(i).peek().litValue
+            //     println(s"Index $i: $deltaValue")
+            // }
+            val deltaDir = s"${outputDir}/Delta"
+            new File(deltaDir).mkdirs()
+            val deltaOutputFile = s"${deltaDir}/${componentType}_block_${blockNum}_delta.txt"
+            val deltaWriter = new java.io.FileWriter(deltaOutputFile)
+            try {
+                val dcDiff = dut.io.encodedDeltaY(0).peek().litValue
+                deltaWriter.write(f"$dcDiff\n")
+                println(s"Delta Encoding output written to: $deltaOutputFile")
+            } finally {
+                deltaWriter.close()
             }
 //             // Testing DCT
 //             val jpegEncoder = new jpegEncode(false, List.empty, 0)
@@ -180,19 +222,19 @@ class JPEGEncodeChiselTest extends AnyFlatSpec with ChiselScalatestTester {
     behavior of "Top-level JPEG Encode Chisel"
 
     it should "Encodes Y" in {
-        val p = JPEGParams(8, 8, 1, true) // 使用 RLE
-        val yDataFile = "hw_output/y.txt"
+        val p = JPEGParams(8, 8, 1, true)
+        val yDataFile = "hw_output/y_block_0.txt"
         
         doJPEGEncodeChiselTest(yDataFile, p)
     }
     it should "Encodes Cb" in {
-        val p = JPEGParams(8, 8, 1, true) // 使用 RLE
+        val p = JPEGParams(8, 8, 2, true)
         val yDataFile = "hw_output/cb_block_0.txt"
         
         doJPEGEncodeChiselTest(yDataFile, p)
     }
     it should "Encodes Cr" in {
-        val p = JPEGParams(8, 8, 1, true)
+        val p = JPEGParams(8, 8, 2, true)
         val yDataFile = "hw_output/cr_block_0.txt"
         doJPEGEncodeChiselTest(yDataFile, p)
     }
