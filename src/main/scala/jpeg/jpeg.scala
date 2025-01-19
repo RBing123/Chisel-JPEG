@@ -215,6 +215,15 @@ class JPEGEncodeChisel(p: JPEGParams) extends Module {
 }
 
 object GenerateVerilog extends App {
-    (new ChiselStage).emitVerilog(new JPEGEncodeChisel(JPEGParams(8, 8, 1, true)),
-        Array("--target-dir", "verilog_output"))
+    // 配置 JPEG 壓縮參數
+    val params = JPEGParams(8, 8, 1, true)
+
+    // 使用 ChiselStage 生成 Verilog
+    (new ChiselStage).execute(
+        args, // 支持從命令行傳入參數
+        Seq(
+            ChiselGeneratorAnnotation(() => new JPEGEncodeChisel(params)), // 指定模組
+            TargetDirAnnotation("verilog_output") // 指定輸出目錄
+        )
+    )
 }
